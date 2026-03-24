@@ -9,7 +9,6 @@ import { Cashfree, CFEnvironment } from 'cashfree-verification';
 import axios, { AxiosError } from 'axios';
 import FormData from 'form-data';
 import * as crypto from 'crypto';
-import * as fs from 'fs';
 
 export interface FileField {
   data: Buffer;
@@ -30,7 +29,7 @@ export interface FileField {
  *   Option B — RSA Signature (for dynamic IPs or cloud deployments):
  *     Go to Dashboard → Developers → Two-Factor Authentication
  *     → Public Key → Generate Public Key → download the .pem file.
- *     Set CASHFREE_PUBLIC_KEY_PATH=/path/to/public_key.pem in .env
+ *     Set CASHFREE_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----" in .env
  *     The service auto-generates a fresh signature on every request.
  *
  * Signature algorithm:
@@ -72,21 +71,29 @@ export class CashfreeService implements OnModuleInit {
     Cashfree.XEnableErrorAnalytics = false;
 
     // ── Load RSA public key if provided ────────────────────
-    const keyPath = this.config.get<string>('CASHFREE_PUBLIC_KEY_PATH', '');
-    if (keyPath && fs.existsSync(keyPath)) {
+    const key = this.config.get<string>('CASHFREE_PUBLIC_KEY', '');
+    if (key) {
       try {
-        const pem = fs.readFileSync(keyPath, 'utf8');
+        let pem = key.replace(/\\n/g, '\n');
+        if (!pem.includes('\n') && pem.includes('BEGIN PUBLIC KEY')) {
+          const body = pem
+            .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+            .replace(/-----END PUBLIC KEY-----/g, '')
+            .replace(/\s+/g, '');
+          const chunked = body.match(/.{1,64}/g)?.join('\n') || body;
+          pem = `-----BEGIN PUBLIC KEY-----\n${chunked}\n-----END PUBLIC KEY-----`;
+        }
         this.publicKey = crypto.createPublicKey(pem);
         this.signatureMode = 'signature';
         this.logger.log('Cashfree 2FA: RSA signature mode enabled');
       } catch (err) {
         this.logger.error(
-          `Failed to load Cashfree public key from ${keyPath}: ${err}`,
+          `Failed to load Cashfree public key from ${key}: ${err}`,
         );
       }
     } else {
       this.logger.log(
-        'Cashfree 2FA: IP whitelist mode (set CASHFREE_PUBLIC_KEY_PATH for signature mode)',
+        'Cashfree 2FA: IP whitelist mode (set CASHFREE_PUBLIC_KEY for signature mode)',
       );
     }
   }

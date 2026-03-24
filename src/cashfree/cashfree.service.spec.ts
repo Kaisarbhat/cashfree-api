@@ -20,22 +20,13 @@ jest.mock('cashfree-verification', () => ({
   CFEnvironment: { SANDBOX: 1, PRODUCTION: 2 },
 }));
 
-// Mock the entire fs module so existsSync is configurable
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  existsSync: jest.fn().mockReturnValue(false),
-  readFileSync: jest.fn(),
-}));
-
-import * as fs from 'fs';
-const mockedFs = fs as jest.Mocked<typeof fs>;
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-const makeConfig = (env = 'sandbox', keyPath = '') => ({
+const makeConfig = (env = 'sandbox', publicKeyValue = '') => ({
   get: (k: string, def?: string) => {
     const m: Record<string, string> = {
       CASHFREE_ENV: env,
-      CASHFREE_PUBLIC_KEY_PATH: keyPath,
+      CASHFREE_PUBLIC_KEY: publicKeyValue,
     };
     return m[k] ?? def;
   },
@@ -54,7 +45,6 @@ describe('CashfreeService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    (mockedFs.existsSync as jest.Mock).mockReturnValue(false);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CashfreeService,
@@ -76,7 +66,6 @@ describe('CashfreeService', () => {
     });
 
     it('sets production environment when configured', async () => {
-      (mockedFs.existsSync as jest.Mock).mockReturnValue(false);
       const mod = await Test.createTestingModule({
         providers: [
           CashfreeService,
@@ -119,14 +108,12 @@ describe('CashfreeService', () => {
         modulusLength: 2048,
       });
       const pem = publicKey.export({ type: 'spki', format: 'pem' }) as string;
-      (mockedFs.existsSync as jest.Mock).mockReturnValue(true);
-      (mockedFs.readFileSync as jest.Mock).mockReturnValue(pem);
       const mod = await Test.createTestingModule({
         providers: [
           CashfreeService,
           {
             provide: ConfigService,
-            useValue: makeConfig('sandbox', '/key.pem'),
+            useValue: makeConfig('sandbox', pem),
           },
         ],
       }).compile();
