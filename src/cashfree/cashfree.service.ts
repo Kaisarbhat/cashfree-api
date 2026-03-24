@@ -74,7 +74,11 @@ export class CashfreeService implements OnModuleInit {
     const key = this.config.get<string>('CASHFREE_PUBLIC_KEY', '');
     if (key) {
       try {
-        let pem = key.replace(/\\n/g, '\n');
+        let pem = key.trim();
+        if (pem.startsWith('"') && pem.endsWith('"')) pem = pem.slice(1, -1);
+        if (pem.startsWith("'") && pem.endsWith("'")) pem = pem.slice(1, -1);
+
+        pem = pem.replace(/\\n/g, '\n');
         if (!pem.includes('\n') && pem.includes('BEGIN PUBLIC KEY')) {
           const body = pem
             .replace(/-----BEGIN PUBLIC KEY-----/g, '')
