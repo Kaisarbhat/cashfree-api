@@ -78,22 +78,22 @@ export class CashfreeService implements OnModuleInit {
         if (pem.startsWith('"') && pem.endsWith('"')) pem = pem.slice(1, -1);
         if (pem.startsWith("'") && pem.endsWith("'")) pem = pem.slice(1, -1);
 
-        pem = pem.replace(/\\n/g, '\n');
-        if (!pem.includes('\n') && pem.includes('BEGIN PUBLIC KEY')) {
-          const body = pem
-            .replace(/-----BEGIN PUBLIC KEY-----/g, '')
-            .replace(/-----END PUBLIC KEY-----/g, '')
+        // Extract the base64 body unconditionally and rebuild it cleanly
+        const bodyMatch = pem.match(
+          /-----BEGIN PUBLIC KEY-----([\s\S]*?)-----END PUBLIC KEY-----/,
+        );
+        if (bodyMatch && bodyMatch[1]) {
+          const cleanBody = bodyMatch[1]
+            .replace(/\\n/g, '')
             .replace(/\s+/g, '');
-          const chunked = body.match(/.{1,64}/g)?.join('\n') || body;
+          const chunked = cleanBody.match(/.{1,64}/g)?.join('\n') || cleanBody;
           pem = `-----BEGIN PUBLIC KEY-----\n${chunked}\n-----END PUBLIC KEY-----`;
         }
         this.publicKey = crypto.createPublicKey(pem);
         this.signatureMode = 'signature';
         this.logger.log('Cashfree 2FA: RSA signature mode enabled');
       } catch (err) {
-        this.logger.error(
-          `Failed to load Cashfree public key from ${key}: ${err}`,
-        );
+        this.logger.error(`Failed to parse Cashfree public key: ${err}`);
       }
     } else {
       this.logger.log(
